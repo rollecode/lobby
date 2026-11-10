@@ -917,6 +917,7 @@ function select(k) {
     const was = state.buffers.get(state.current);
     if (was) {
       was.spot = was.window ? null : readingSpot();
+      dbg(`leave ${was.name} spot=${JSON.stringify(was.spot)} d=${Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop)}`);
       was.window = null;
       was.windowSeparator = null;
     }
@@ -1213,6 +1214,7 @@ function following() {
 }
 
 function renderLog() {
+  if (0) dbg(`render ${state.current?.split('\u0000')[1]} ${(new Error().stack.split('\n')[1] || '').replace(/.*\//, '').slice(0, 40)}`);
   stopGlide();
   dropLive();
   el.col.replaceChildren();
@@ -1244,6 +1246,7 @@ function renderLog() {
     // Pictures loading next must not move the chat before the first scroll event says where it is.
     stuck = atBottom();
     noteAnchor();
+    dbg(`rendered d=${Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop)} h=${el.log.scrollHeight} anchor=${anchor ? String(anchor.node.className).slice(0, 12) : 'NONE'}`);
   }
   updateJumps();
   if (!b.window) {
@@ -1268,6 +1271,7 @@ function topSpot() {
 
 function backToSpot(b) {
   const spot = b.spot;
+  dbg(`back ${b.name} spot=${JSON.stringify(spot)} sep=${Boolean(view.separator)} h=${el.log.scrollHeight}`);
   b.spot = null;
   return toSpot(spot);
 }
@@ -3660,6 +3664,7 @@ function holdAnchor() {
 
 const ANCHOR_PROBE_PX = 8;
 const stayDown = new ResizeObserver(() => {
+  if (!stuck) dbg(`resize stuck=${stuck} glide=${glide} d=${Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop)} h=${el.log.scrollHeight}`);
   if (actionPanel) {
     return;
   }
@@ -3681,6 +3686,9 @@ stayDown.observe(el.col);
 el.log.addEventListener(
   'scroll',
   () => {
+    const dNow = Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop);
+    if (Math.abs(dNow - (window.__lastD ?? dNow)) > 30) dbg(`scroll d ${window.__lastD}->${dNow} h=${el.log.scrollHeight}`);
+    window.__lastD = dNow;
     stuck = atBottom() || glide !== 0;
     noteAnchor();
     cancelAnimationFrame(jumpFrame);
@@ -6219,6 +6227,7 @@ async function addRecap(b) {
   // The card goes in above what is being read; WebKit does not hold the view in place on its own.
   const bottom = atBottom();
   const spot = bottom ? null : topSpot();
+  dbg(`recap bottom=${bottom} d=${Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop)}`);
   line.after(recapCard(b, list));
   if (bottom) {
     toBottom();
@@ -6490,3 +6499,15 @@ el.settingsTabs.addEventListener('keydown', (e) => {
     next.click();
   }
 });
+
+// DEBUG overlay
+window.__dl = [];
+window.dbg = (m) => { __dl.push(`${(performance.now() / 1000).toFixed(2)} ${m}`); };
+{
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:0;bottom:0;z-index:99999;background:#000;color:#0f0;font:11px monospace;padding:3px;white-space:pre;pointer-events:none;max-width:100vw';
+  document.body.append(box);
+  setInterval(() => {
+    box.textContent = `d=${Math.round(el.log.scrollHeight - el.log.clientHeight - el.log.scrollTop)} h=${el.log.scrollHeight} top=${el.log.scrollTop.toFixed(1)} stuck=${stuck} cur=${state.current?.split('\u0000')[1]}\n` + __dl.slice(-40).join('\n');
+  }, 100);
+}
